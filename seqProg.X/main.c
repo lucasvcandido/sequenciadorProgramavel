@@ -27,6 +27,7 @@
 #include "serialIO.h"
 #include "atuadores.h"
 #include "timer1.h"
+#include "estados.h"
 
 void __interrupt() irq(void)
 {
@@ -49,10 +50,8 @@ void main(void)
     
     char *texto;
     char tecla = 0;
-    char estado = 0;
-    char tela[16] = {"   A- B- C- D-  "};
+    char estado = INICIO;
     char atuador;
-    char iPassos;
     char lin2[17] = "                ";
     char contPassos = 0;
     char vetorIn[1] = { 0 };
@@ -60,247 +59,370 @@ void main(void)
     initSerialIO( vetorIn, vetorOut, 1 );
     char meAtuadores = -1;
     char auxPasso = 0; 
-    char aux = 0;
-    
-    
-    /*while( 1 )
-    {
-        switch(estado)
-        {
-            case 0:     
-                dispLCD(0, 0, "Arre");
-                estado = 1;
-                break;            
-                
-            case 1:
-                setT1(2000);
-                estado = 2;
-                break;
-                
-            case 2:
-                if(!statusT1())
-                    estado = 3;                
-                break;
-                
-            case 3:
-                dispLCD(0, 0, "Egua");
-                setT1(2000);
-                estado = 4;
-                break;
-                
-            case 4:
-                if(!statusT1())
-                    estado = 0;                
-                break;
-                
-        }
-    }*/
+    char aux = 2;
+    unsigned int num = 0;    
+    unsigned int ciclos = 0;
+    char botao = 0;
+#define STOP    0
+#define PLAY    1
+#define PAUSE   2
+#define STEP    3
+    char boolPause = 0;
+#define boolPlay !boolPause
+    char boolStop = 0;
+    char pauseLeft = 0;
+    char pauseRight = 0;
+    char meAtAux = 0;
+    char next = 0;
 
     while(1)
     {        
          switch(estado)
         {        
-            case 0:
-                    for(char i = 0; i <= 1; i++)
-                    {
-                        for(char j = 0; j <= 15; j++)
-                        {
-                            dispLCD(i, j, "\377");
-                            delay(50);
-                        }
-                    }
+             case INICIO:
+                            for(char i = 0; i <= 1; i++)
+                            {
+                                for(char j = 0; j <= 15; j++)
+                                {
+                                    dispLCD(i, j, "\377");
+                                    delay(10);
+                                }
+                            }
 
-                    for(char i = 0; i <= 1; i++)
-                    {
-                        for(char j = 0; j <= 15; j++)
-                        {
-                            dispLCD(i, j, " ");
-                            delay(50);
-                        }
-                    }
-                    estado = 1;
-                    break;
+                            for(char i = 0; i <= 1; i++)
+                            {
+                                for(char j = 0; j <= 15; j++)
+                                {
+                                    dispLCD(i, j, " ");
+                                    delay(10);
+                                }
+                            }
+                            estado = TELA_EMPRESA;
+                            break;
                     
-            case 1:
-                    dispLCD(0, 2, "PIController");
-                    setT1(2000);                    
-                    estado = 2;
-                    break;
+            case TELA_EMPRESA:
+                            dispLCD(0, 2, "PIController");
+                            setT1(1000);                    
+                            estado = TELA_EMPRESA_DELAY;
+                            break;
                     
-             case 2:
-                    if(!statusT1())
-                        estado = 3;                    
-                    break;
+             case TELA_EMPRESA_DELAY:
+                            if(!statusT1())
+                                estado = TELA_AJUSTE_INICIAL;                    
+                            break;
                     
-             case 3:
-                    dispLCD_clr();
-                    dispLCD(0, 0, "Ajuste o inicio ");
-                    dispLCD(1, 0, "   do sistema   ");
-                    setT1(4000);
-                    estado = 4;
+             case TELA_AJUSTE_INICIAL:
+                            dispLCD_clr();
+                            dispLCD(0, 0, "Ajuste o inicio ");
+                            dispLCD(1, 0, "   do sistema   ");
+                            setT1(1000);
+                            estado = TELA_AJUSTE_INICIAL_DELAY;
+                            break;
                 
-             case 4:
-                    if(!statusT1())
-                        estado = 5;
-                    break;
+             case TELA_AJUSTE_INICIAL_DELAY:
+                            if(!statusT1())
+                                estado = INICIO_ATUADORES;
+                            break;
                     
-            case 5:
-                    init_atuadores();                    
-                    estado = 6;
-                    break;
+            case INICIO_ATUADORES:
+                            init_atuadores();                    
+                            estado = TELA_DISPLAY_ATUADORES;
+                            break;
             
-            case 6:
-                    dispLCD_clr();
-                    exib_LCD( tela );                    
-                    estado = 7;
-                    break;
+            case TELA_DISPLAY_ATUADORES:
+                            dispLCD_clr();
+                            dispLCD(0,0,"   A- B- C- D-  ");
+                            estado = TELA_EDICAO_ATUADORES;
+                            break;
                             
-            case 7:
-                    tecla = teclado_borda();
-                    if( tecla )                             // NAO ALTERAR DE POSICAO
-                        estado = 6;                    
-                    switch(tecla)
-                    {
-                        case 'A':   alt_estado(tecla); tela[4]  = ler_estado('A') ? '+' : '-';     break;
-                        case 'B':   alt_estado(tecla); tela[7]  = ler_estado('B') ? '+' : '-';     break;
-                        case 'C':   alt_estado(tecla); tela[10] = ler_estado('C') ? '+' : '-';     break;
-                        case 'D':   alt_estado(tecla); tela[13] = ler_estado('D') ? '+' : '-';     break;
-                        case '#':   estado = 10;                                                   break;                        
-                    }
-                    break;
+            case TELA_EDICAO_ATUADORES:
+                            tecla = teclado_borda();
+                            switch(tecla)
+                            {
+                                case 'A':   alt_atuador(tecla); dispLCD_lincol(0, 4); dispLCD_dataReg(ler_atuador('A') ? '+' : '-');     break;
+                                case 'B':   alt_atuador(tecla); dispLCD_lincol(0, 7); dispLCD_dataReg(ler_atuador('B') ? '+' : '-');     break;
+                                case 'C':   alt_atuador(tecla); dispLCD_lincol(0,10); dispLCD_dataReg(ler_atuador('C') ? '+' : '-');     break;
+                                case 'D':   alt_atuador(tecla); dispLCD_lincol(0,13); dispLCD_dataReg(ler_atuador('D') ? '+' : '-');     break;
+                                case TECLA_ENTER:   estado = TELA_INSERIR_PASSOS;                            break;                        
+                            }
+                            break;
 
                     // TELA DE EDIÇAO
 
-            case 10:
-                    dispLCD_clr();
-                    iPassos = 0;
-                    dispLCD(0, 0, "Insira os passos");
-                    dispLCD(1, 0, "     00/20      ");
-                    estado = 11;
-                    break;
+            case TELA_INSERIR_PASSOS:
+                            dispLCD_clr();
+                            dispLCD(0, 0, "Insira os passos");
+                            estado = TELA_CONTAR_PASSOS;
+                            break;
 
-             case 11:
-                    tecla = teclado_borda();
-                    switch( tecla )
-                    {
-                        case 'A': 
-                        case 'B': 
-                        case 'C': 
-                        case 'D': 
-                                    atuador = tecla;     
-                                    if(iPassos < pos_fila()-8)
-                                        iPassos = pos_fila()-8;         //alteracao feita                                    
-                                    estado = 12;
+             case TELA_EDITAR_PASSOS:
+                            tecla = teclado_borda();
+                            switch( tecla )
+                            {
+                                case 'A': 
+                                case 'B': 
+                                case 'C': 
+                                case 'D': 
+                                            if( fifo_disponivel() )
+                                            {
+                                                alt_atuador(tecla);  
+                                                fifo_add( ler_atuador(tecla) ? tecla : tecla|0x20 );
+                                                estado = TELA_PRINTFILA;
+                                            }
+                                            break;
+                                case TECLA_RIGHT:
+                                            fifo_indicePrint_inc();
+                                            estado = TELA_PRINTFILA;
+                                            break;
+                                case TECLA_LEFT:
+                                            fifo_indicePrint_dec();
+                                            estado = TELA_PRINTFILA;                        
+                                            break;
+
+                                case TECLA_DELETE:   
+                                            fifo_delete();
+                                            estado = TELA_PRINTFILA;
+                                            break;    
+
+                                case TECLA_ENTER:   estado = TELA_EDITA_REPETICAO;        break; 
+
+                                case TECLA_T:       estado = TELA_EDITATEMPO;               break;
+                            }
+                            break; 
+
+             case TELA_PRINTFILA:
+                            fifo_print();
+                            estado = TELA_CONTAR_PASSOS;
+                            break;
+                    
+             case TELA_CONTAR_PASSOS:
+                            dispLCD(1,0,"<  /  >");
+                            dispLCD_num(1, 1,( fifo_indice()-2 ), 2);
+                            dispLCD_num(1, 4,( fifo_tam()-2 ), 2);
+                            estado = TELA_EDITAR_PASSOS;
+                            break;
+                    
+             case TELA_EXECUTANDO_PASSOS:
+                            //dispLCD_clr();                            
+                            estado = ME_ESPERA_EXECUCAO;
+                            meAtuadores = ME_ATUADORES_START;
+                            break;
+                 
+             case ME_ESPERA_EXECUCAO:
+                            if( meAtuadores == 3 && botao != PAUSE )
+                            {                                
+                                dispLCD(0, 0, "     [    ]     ");
+                                printExec(1, -1);
+                                printExec(7, 0);
+                                printExec(12, 1);  
+                                dispLCD(1, 0, "<  /  > c:      ");
+                                dispLCD_num(1, 4,( fifo_indice() - 2 ), 2);
+                                dispLCD_num(1, 1, ( getIndicePassos() - 1 ), 2);                                         
+                                dispLCD_num(1, 11, ( getContCiclos() + 1 ), 5);                                            
+                                
+                            }
+                            if(meAtuadores == 0)
+                            {
+                                estado = TELA_PRINTFILA;
+                                dispLCD_clr();
+                            }
+                            tecla = teclado_borda();
+                            switch(tecla)
+                            {
+                                case TECLA_PLAY:
+                                    botao = PLAY;
                                     break;
-                        case '>':
-                                    estado = 20;
-                                    break;
-                        case '<':
-                                    estado = 21;                        
+                                
+                                case TECLA_PAUSE:
+                                    botao = PAUSE;
                                     break;
                                     
-                        case '3':   
-                                    retirar_fila();
-                                    if( iPassos > ( pos_fila()-8 ) && iPassos )
-                                        iPassos = ( pos_fila()-8 );
-                                    estado = 13;
+                                case TECLA_STOP:
+                                    botao = STOP;
                                     break;
-                                    
-                        case '9':    
-                                    
-                        case '#':   estado = 30;        break; 
-                    }
-                    break;
-
-             case 12:
-                    alt_estado(atuador);  
-                    inserir_fila( ler_estado(atuador) ? atuador : atuador|0x20 );
-                    estado = 20;
-                    break;
-
-             case 13:
-                    escreve_filaLCD( ler_fila(), iPassos );
-                    estado = 14;
-                    break;
+                                   
+                                case TECLA_STEP:
+                                    if(botao == PAUSE)
+                                        botao = STEP;
+                                    break;
+                            }
+                            break;
+                 
+             case CONFIG_TEMPO:
+                            tecla = teclado_borda();
+                            if(tecla >= '0' && tecla <= '9')
+                            {
+                                dignum_conc(tecla, &num);
+                                if(num > 120)
+                                    num = 120;
+                                estado = TELA_EDITATEMPO;                                
+                            }
+                            if(tecla == TECLA_DELETE)
+                            {
+                                dignum_apagar(&num);
+                                estado = TELA_EDITATEMPO;
+                            }
+                            if(tecla == TECLA_ENTER)
+                                estado = INSERIR_TEMPOFILA;
+                            break;
+                            
+             case TELA_EDITATEMPO:
+                            dispLCD(1, 0, "cfg tempo:     s");
+                            dispLCD_num(1, 11, num, 3);
+                            estado = CONFIG_TEMPO;
+                            break;
+                            
+             case INSERIR_TEMPOFILA:
+                            fifo_add_tempo(num);
+                            dispLCD_clr();
+                            estado = TELA_PRINTFILA;
+                            break;
+                            
+             case TELA_TITULO_REPETICAO:
+                            dispLCD_clr();
+                            dispLCD(0, 0, "    Tela de     ");
+                            dispLCD(1, 0, "   Repeticao    ");
+                            setT1(2000);
+                            estado = TELA_DIGNUM_REPETICAO;
+                            break;
+                 
+             case TELA_DIGNUM_REPETICAO:
+                            if(!statusT1())
+                            {
+                                dispLCD_clr();
+                                dispLCD(0, 0, "Digite o numero ");
+                                dispLCD(1, 0, " de repeticoes  ");
+                                setT1(2000);
+                                estado = TELA_CONFIG_REPETICAO;
+                            }
+                            break;
+                
+             case TELA_DIGNUM_DELAY:
+                            if(!statusT1())
+                            {
+                               dispLCD_clr(); 
+                               estado = TELA_EDITA_REPETICAO;                    
+                            }
+                            break;
+                 
+                
+             case TELA_CONFIG_REPETICAO:
+                            tecla = teclado_borda();
+                            if(tecla >= '0' && tecla <= '9')
+                               {
+                                dignum_conc(tecla, &ciclos);
+                                if(ciclos > 10000)
+                                    ciclos = 10000;
+                                estado = TELA_EDITA_REPETICAO;
+                                break;
+                               }
+                            switch(tecla)
+                               {
+                                   case 'A':
+                                   case 'B':
+                                   case 'C':
+                                   case 'D':
+                                       dispLCD(1, 0, "                ");
+                                       estado = TELA_PRINTFILA;
+                                       break;
+                                   case '#':
+                                       estado = ME_INSERIR_CICLO_FILA;
+                                       break;
+                                   case '*':
+                                       dignum_apagar(&ciclos);
+                                       estado = TELA_EDITA_REPETICAO;
+                                       break;
+                               }                    
+                            break;                
+                 
+             case TELA_EDITA_REPETICAO: 
+                            dispLCD(0, 0, "Ciclos:         ");
+                            dispLCD_num(0, 8, ciclos, 5);
+                            dispLCD(1, 0, "0-Ciclo continuo");
+                            estado = TELA_CONFIG_REPETICAO;
+                            break;
                     
-             case 14:
-                    lin2[0] = iPassos ? '<' : ' ';
-                    lin2[15] = iPassos < (pos_fila()-8) ? '>' : ' ';  
-                    contPassos = pos_fila();                    
-                    lin2[5] = char_fila( contPassos / 10 );                    
-                    lin2[6] = char_fila( contPassos % 10 );                                        
-                    lin2[7] = '/';                                        
-                    lin2[8] = '2';
-                    lin2[9] = '0';
-                    estado = 15;
-                    break;
-                    
-             case 15:
-                    dispLCD( 1, 0, lin2 );
-                    estado = 11;
-                    break;
-
-             case 20: 
-                    if( pos_fila() > 8 && iPassos < pos_fila()-8 )
-                        iPassos++;
-                    estado = 13;
-                    break;
-                    
-             case 21:
-                    if( iPassos )
-                        iPassos--;
-                    estado = 13;
-                    break;
-                    
-             case 30:   
-                 dispLCD_clr();
-                 dispLCD(0, 0, "   Executando   ");
-                 dispLCD(1, 0, "     passos     ");
-                 estado = 70;
-                 meAtuadores = 0;     
-                 break; 
-                    
-                    
+             case ME_INSERIR_CICLO_FILA:
+                            fifo_add_ciclo(ciclos);
+                            estado = TELA_EXECUTANDO_PASSOS;
+                            botao = PLAY;
+                            break;
         }
-        serialIOscan();        
+ 
+        serialIOscan();     
+ 
         switch(meAtuadores)
         {
-            case 0: meAtuadores = 1;     break;
-
-            case 1:                
-                auxPasso = ler_posfila(aux);
-                aux = (aux+1) % 21;
-                if(!auxPasso)
-                {
-                    reset_fila();
-                    aux = 0;
-                    estado = 2;
-                    meAtuadores = -1;
-                    break;
-                }
-                meAtuadores = 2;
-                break;
+            case 0:         break;
+            
+            case 1:
+                            resetIndicePassos();
+                            resetContCiclos();                    
+                            meAtuadores = 2;
+                            break;
 
             case 2:
-                    set_passo(auxPasso, vetorOut);                    
-                    //setT1(1000);
-                    meAtuadores = 3;
-                    break;
+                            auxPasso = fifo_lerPos(getIndicePassos());
+                           
+                            if(botao == PLAY || botao == STEP || botao == STOP)
+                                meAtuadores = 3;
+                            break;
 
             case 3:
-                    if( ler_sensor(auxPasso, vetorIn) )
-                        meAtuadores = 1;                                                                   
-                    break;
-                    /*else if( !statusT1() )
-                    {
-                        meAtuadores = 4;                        
-                    }
-                    break;
-                    
+                            if(auxPasso & 0x80)
+                            {
+                                setT1( (unsigned long int)(auxPasso & 0x7F) * 1000 );
+                                meAtuadores = 4;
+                            }
+                            else
+                            {
+                                set_passo(auxPasso, vetorOut);
+                                meAtuadores = 5;
+                            }
+                            break;
+
             case 4:
-                    meAtuadores = 1;
-                    break;*/
-        }                                             
+                            if(!statusT1())
+                                meAtuadores = 6;
+                            break;
+
+            case 5:
+                            if(ler_sensor(auxPasso, vetorIn))
+                                meAtuadores = 6;
+                            break; 
+                    
+            case 6:
+                            if(botao == STEP)
+                            {
+                                botao = PAUSE;
+                            }
+                            meAtuadores = 7;
+                            
+                            break;
+                            
+            case 7:
+                            addIndicePassos();
+                            if(getIndicePassos() < fifo_indice())
+                                meAtuadores = 2;
+                            else
+                            {
+                                addContCiclos();
+                                meAtuadores = 8;
+                            }
+                            break;
+                    
+            case 8:
+                            if((botao != STOP) && ((getContCiclos() < getCiclos()) || (getCiclos() == 0)))
+                            {
+                                resetIndicePassos();
+                                meAtuadores = 2;
+                            }
+                            else
+                            {
+                                meAtuadores = 0;                        
+                            }
+                            break;               
+        }
     }
     return;
 }
